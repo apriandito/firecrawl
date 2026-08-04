@@ -15,7 +15,9 @@
     "dev": "tsx watch src/server/api.ts",
     "serve": "tsx src/server/api.ts",
     "cli": "tsx src/cli.ts",
-    "typecheck": "tsc --noEmit"
+    "agent": "tsx src/agent-cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/smoke.ts && tsx scripts/smoke-crawl.ts && tsx scripts/smoke-agent.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",

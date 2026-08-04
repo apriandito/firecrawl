@@ -143,16 +143,69 @@ Run the mechanism smoke tests (no API key needed):
 npx tsx scripts/smoke.ts
 ```
 
+## Phase 3 — discovery & multi-page
+
+```ts
+import { mapSite, crawl } from "scrapeflow";
+
+const urls = await mapSite("https://example.com", { limit: 100 }); // sitemap + links
+const { documents } = await crawl("https://example.com/blog", {
+  prefix: "https://example.com/blog", // stay in a section
+  maxDepth: 2,
+  limit: 30,
+  concurrency: 5,
+});
+```
+
+`crawl` is a same-site BFS over a concurrency-limited queue that dedups by
+normalized URL. `mapSite` reads `robots.txt` + `sitemap.xml` (following one index
+level) and falls back to homepage links.
+
+## Phase 4 — the agent (your mission)
+
+```bash
+OPENAI_API_KEY=... npm run agent -- "berita ekonomi syariah di CNBC, jadikan Excel"
+```
+
+```ts
+import { runAgent } from "scrapeflow";
+
+const { files, records } = await runAgent({
+  task: "collect Islamic-economy news from CNBC Indonesia into an Excel file",
+});
+// files[0].bytes -> the .xlsx
+```
+
+The agent (`src/agent/`) is just Phases 1–3 wrapped as tools:
+
+```
+NL task → LLM plans → map_site → scrape_pages → extract_records → export_xlsx
+```
+
+Each tool stashes big artifacts (pages, rows) in an `AgentSession` and returns
+only compact summaries, so page content never floods the model context. Adding
+Phase 4 required **no changes** to earlier phases — exactly what the `AgentTool`
+port was placed for on day one.
+
+## Tests
+
+```bash
+npm test   # 27 checks across all phases — no API key / network needed
+```
+
+Uses fake scrapers and a fake LLM so the full map→scrape→extract→xlsx pipeline
+is verified deterministically (the final workbook is reopened and asserted).
+
 ## Roadmap
 
 - [x] **Phase 1** — URL → clean markdown (engines + pipeline)
 - [x] **Phase 2** — structured extract (Zod) + Excel export
 - [x] **Robustness** — retry/backoff, block detection, deterministic
       sandboxed extraction with self-repair
-- [ ] **Phase 3** — crawl/map + job queue (BullMQ)
-- [ ] **Phase 4** — agentic: wrap each use-case as an `AgentTool`; NL prompt
-      → plan → search → scrape → extract → export. The `AgentTool` port
-      already exists in `src/core/ports.ts` for exactly this.
+- [x] **Phase 3** — map (sitemap) + same-site crawl (concurrency queue)
+- [x] **Phase 4** — agentic: NL task → tools (map/scrape/extract/export)
+- [ ] **Next** — distributed queue (BullMQ/Redis) behind `CrawlQueue`;
+      a `search` tool; a hardened `SandboxRunner` (isolated-vm)
 
 ## License
 

@@ -14,16 +14,20 @@ export interface OpenAIProviderOptions {
   baseURL?: string;
 }
 
+/** The raw AI SDK LanguageModel — needed for tool-calling (the agent loop). */
+export function createOpenAIModel(opts: OpenAIProviderOptions = {}) {
+  const openai = createOpenAI({
+    apiKey: opts.apiKey ?? process.env.OPENAI_API_KEY,
+    baseURL: opts.baseURL ?? process.env.OPENAI_BASE_URL,
+  });
+  const modelName = opts.model ?? process.env.SCRAPEFLOW_MODEL ?? "gpt-4o-mini";
+  return { model: openai(modelName), modelName };
+}
+
 export function createOpenAIProvider(
   opts: OpenAIProviderOptions = {},
 ): LLMProvider {
-  const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
-  const modelName = opts.model ?? process.env.SCRAPEFLOW_MODEL ?? "gpt-4o-mini";
-  const openai = createOpenAI({
-    apiKey,
-    baseURL: opts.baseURL ?? process.env.OPENAI_BASE_URL,
-  });
-  const model = openai(modelName);
+  const { model, modelName } = createOpenAIModel(opts);
 
   return {
     name: `openai:${modelName}`,
