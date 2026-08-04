@@ -1,6 +1,7 @@
-import type { Document, RawResult, ScrapeOptions } from "../types.js";
+import type { Document, ScrapeOptions } from "../types.js";
 import { buildFallbackList } from "../engines/registry.js";
 import { runPipeline } from "../pipeline/index.js";
+import { evaluateResult, withRetry } from "../engines/resilience.js";
 
 export class NoEnginesLeftError extends Error {
   constructor(
@@ -13,11 +14,6 @@ export class NoEnginesLeftError extends Error {
     );
     this.name = "NoEnginesLeftError";
   }
-}
-
-function looksSuccessful(raw: RawResult): boolean {
-  if (raw.statusCode && raw.statusCode >= 400) return false;
-  return typeof raw.rawHtml === "string" && raw.rawHtml.trim().length > 0;
 }
 
 /**
@@ -44,13 +40,19 @@ export async function scrapeUrl(
   for (const engine of engines) {
     try {
       log(`trying engine: ${engine.name}`);
-      const raw = await engine.fetch(url, opts);
-      if (!looksSuccessful(raw)) {
-        attempts.push({
-          engine: engine.name,
-          error: `status ${raw.statusCode ?? "?"} / empty`,
-        });
-        continue;
+      const raw = await withRetry((attempt) => {
+        if (attempt > 0) log(`  ${engine.name} retry #${attempt}`);
+        return engine.fetch(url, opts);
+      }, {
+        retries: opts.engine ? 3 : 2,
+        onRetry: (e) => log(`  ${engine.name} threw: ${(e as Error)?.message}`),
+      });
+
+      const verdict = evaluateResult(raw);
+      if (!verdict.ok) {
+        attempts.push({ engine: engine.name, error: verdict.reason ?? "unusable" });
+        log(`  ${engine.name} rejected: ${verdict.reason}`);
+        continue; // fall through to the next, stronger engine
       }
 
       const doc: Document = {

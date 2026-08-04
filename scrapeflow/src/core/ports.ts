@@ -58,3 +58,42 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
   readonly schema: z.ZodType<TArgs>;
   run(args: TArgs): Promise<TResult>;
 }
+
+/**
+ * Executes an LLM-generated extractor against a page inside an isolated
+ * environment. Kept as a port so the default in-process runner (jsdom + vm)
+ * can be swapped for a hardened jail (isolated-vm, a separate service) without
+ * touching the extraction logic.
+ */
+export interface SandboxRunner {
+  run(job: {
+    /** Extractor source, defining `async function extract(document) {...}`. */
+    code: string;
+    html: string;
+    url: string;
+    timeoutMs?: number;
+  }): Promise<unknown>;
+}
+
+/**
+ * Persists LLM-generated extractor code so the (slow, non-deterministic) code
+ * generation happens once per (url + schema + prompt), and every later run is
+ * pure deterministic code. Swap memory ↔ file ↔ Postgres behind this port.
+ */
+export interface ExtractorCache {
+  get(key: string): Promise<CachedExtractor | undefined>;
+  set(key: string, code: string, meta: ExtractorMeta): Promise<void>;
+  /** Optional: bump a last-used timestamp on a cache hit. */
+  touch?(key: string): Promise<void>;
+}
+
+export interface CachedExtractor {
+  code: string;
+  createdAt: number;
+}
+
+export interface ExtractorMeta {
+  url: string;
+  model: string;
+  cacheVersion: number;
+}

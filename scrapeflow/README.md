@@ -94,10 +94,61 @@ curl -X POST localhost:3000/extract \
   -o out.xlsx
 ```
 
+## Robustness mechanisms
+
+Clean-room reimplementations of the smart ideas that make a scraper reliable:
+
+**Resilience layer** (`src/engines/resilience.ts`)
+- `withRetry` — exponential backoff per engine.
+- `detectBlock` — recognizes Cloudflare/CAPTCHA/"just a moment" walls so they
+  don't get returned as page content.
+- `evaluateResult` — rejects empty bodies, block pages, and JS-only shells, and
+  flags whether to **escalate** to a stronger engine.
+
+**Deterministic extraction** (`src/extract/deterministic/`) — the big one.
+Instead of calling the LLM on every page (non-deterministic, costly), the LLM
+**writes an extractor once**; the code is cached and every later page runs pure
+deterministic code:
+
+```
+first page:  HTML → LLM writes extract(document) → cache → sandbox → JSON
+later pages: HTML → cached extractor → sandbox → JSON        (no LLM)
+```
+
+- **Sandbox** (`sandbox.ts`) — jsdom with `runScripts: "outside-only"` (the
+  page's scripts never run), a `vm` context, a JSON realm boundary, and a
+  synchronous+async timeout. `SandboxRunner` is a port, so a hardened jail
+  (isolated-vm / external service) is a drop-in swap.
+- **Self-repair** (`selectorRepair.ts`) — statically detects too-strict `>`
+  selectors that match 0 elements and feeds the model precise fix instructions;
+  regenerates once.
+- **Fail honestly** — a sandbox throw or schema-validation mismatch triggers one
+  regeneration; a second failure **propagates** instead of returning empty data.
+- **Cache** (`cache.ts`) — memory or file backend, keyed by
+  `hash(version + model + url + schema + prompt)`.
+
+```ts
+const data = await extractStructured({
+  document: docWithHtml,          // scrape with formats: ["rawHtml"] or ["html"]
+  schema: z.object({ title: z.string().nullable() }),
+  prompt: "the article headline",
+  llm,
+  strategy: "deterministic",       // <- cached, sandboxed, self-repairing
+});
+```
+
+Run the mechanism smoke tests (no API key needed):
+
+```bash
+npx tsx scripts/smoke.ts
+```
+
 ## Roadmap
 
 - [x] **Phase 1** — URL → clean markdown (engines + pipeline)
 - [x] **Phase 2** — structured extract (Zod) + Excel export
+- [x] **Robustness** — retry/backoff, block detection, deterministic
+      sandboxed extraction with self-repair
 - [ ] **Phase 3** — crawl/map + job queue (BullMQ)
 - [ ] **Phase 4** — agentic: wrap each use-case as an `AgentTool`; NL prompt
       → plan → search → scrape → extract → export. The `AgentTool` port

@@ -1,6 +1,7 @@
 import type { z } from "zod";
-import type { LLMProvider } from "./ports.js";
+import type { ExtractorCache, LLMProvider, SandboxRunner } from "./ports.js";
 import type { Document } from "../types.js";
+import { extractDeterministic } from "../extract/deterministic/extract.js";
 
 const SYSTEM_PROMPT = [
   "You extract structured data from a web page's content.",
@@ -25,16 +26,45 @@ export interface ExtractArgs<T> {
   /** Extra natural-language guidance, e.g. "only Islamic-economy news". */
   prompt?: string;
   llm: LLMProvider;
+  /**
+   * "llm" (default): ask the LLM to fill the schema on every call — flexible,
+   * non-deterministic, one API call per page.
+   * "deterministic": LLM writes an extractor once, it's cached, and every later
+   * page runs pure code in a sandbox — consistent and cheap at scale.
+   */
+  strategy?: "llm" | "deterministic";
+  cache?: ExtractorCache;
+  sandbox?: SandboxRunner;
+  log?: (msg: string) => void;
 }
 
 /**
- * Structured extraction use-case. Uses the page's markdown as the source text
- * and asks the LLM to fill a Zod schema. This is the "LLM at runtime" strategy;
- * a deterministic code-generation strategy can be added later behind the same
- * signature without changing callers.
+ * Structured extraction use-case. Two strategies behind one signature so
+ * callers (including the future agent layer) never change.
  */
 export async function extractStructured<T>(args: ExtractArgs<T>): Promise<T> {
   const { document, schema, prompt, llm } = args;
+
+  if (args.strategy === "deterministic") {
+    const html = document.rawHtml ?? document.html;
+    if (!html) {
+      throw new Error(
+        'deterministic strategy needs HTML; scrape with formats including "rawHtml" or "html".',
+      );
+    }
+    const { data } = await extractDeterministic({
+      html,
+      url: document.metadata.url,
+      schema,
+      prompt,
+      llm,
+      cache: args.cache,
+      sandbox: args.sandbox,
+      log: args.log,
+    });
+    return data;
+  }
+
   const source = document.markdown ?? document.html ?? document.rawHtml ?? "";
   if (!source.trim()) {
     throw new Error("extractStructured: document has no textual content");
