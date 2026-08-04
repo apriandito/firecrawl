@@ -36,6 +36,8 @@ export {
   matchesPrefix,
   makeUrlFilter,
 } from "./lib/urls.js";
+export { normalizeDate } from "./lib/dates.js";
+export type { NormalizedDate } from "./lib/dates.js";
 
 // Resilience layer
 export { withRetry, detectBlock, evaluateResult } from "./engines/resilience.js";

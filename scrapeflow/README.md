@@ -187,10 +187,32 @@ only compact summaries, so page content never floods the model context. Adding
 Phase 4 required **no changes** to earlier phases — exactly what the `AgentTool`
 port was placed for on day one.
 
+## Data normalization (dates)
+
+Extracted text is messy — news dates come as `16 Juni 2026`, `04 August 2026
+09:00`, or ISO. Rather than trust the LLM to normalize (non-deterministic), the
+pipeline pulls a machine-readable publish date deterministically:
+
+```
+JSON-LD datePublished → <meta article:published_time> → <time datetime>
+```
+
+and every scraped `document.metadata` carries a clean `publishedDate`
+(`YYYY-MM-DD`) + `publishedTime` (ISO). For arbitrary strings there's
+`normalizeDate()`, which understands ISO, English + Indonesian month names,
+numeric day-first, and compact URL timestamps — all collapsed to `YYYY-MM-DD`.
+Principle, again: **deterministic where possible, LLM only as fallback.**
+
+```ts
+normalizeDate("16 Juni 2026").date;        // "2026-06-16"
+normalizeDate("04 August 2026 09:00").iso; // "2026-08-04T09:00:00"
+doc.metadata.publishedDate;                // "2026-08-04" (from the page's JSON-LD)
+```
+
 ## Tests
 
 ```bash
-npm test   # 27 checks across all phases — no API key / network needed
+npm test   # 33 checks across all phases — no API key / network needed
 ```
 
 Uses fake scrapers and a fake LLM so the full map→scrape→extract→xlsx pipeline

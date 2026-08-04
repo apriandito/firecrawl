@@ -34,6 +34,10 @@ export interface DocumentMetadata {
   description?: string;
   language?: string;
   contentType?: string;
+  /** Canonical publish date "YYYY-MM-DD", deterministically derived if found. */
+  publishedDate?: string;
+  /** Full ISO publish timestamp when available (from JSON-LD/meta/time). */
+  publishedTime?: string;
   /** Name of the engine that actually produced the raw HTML. */
   engine?: string;
   [key: string]: unknown;
