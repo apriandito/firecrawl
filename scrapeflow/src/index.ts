@@ -51,6 +51,18 @@ export type { Product } from "./extract/product.js";
 export { extractTables, largestTable } from "./extract/tables.js";
 export type { ExtractedTable } from "./extract/tables.js";
 
+// Tidy layer — clean names, inferred types, coerced cells (analysis-ready)
+export { tidyTable } from "./extract/tidy.js";
+export type { TidyTable, TidyColumn, TidyOptions } from "./extract/tidy.js";
+export {
+  parseNumber,
+  parsePercent,
+  stripFootnotes,
+  inferColumnType,
+  coerceCell,
+} from "./lib/coerce.js";
+export type { CellType } from "./lib/coerce.js";
+
 // Resilience layer
 export { withRetry, detectBlock, evaluateResult } from "./engines/resilience.js";
 

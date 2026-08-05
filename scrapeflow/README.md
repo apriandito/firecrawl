@@ -269,6 +269,28 @@ layer *detects* the block, but getting *through* needs stealth + residential
 proxies (a `FetchEngine` you plug in) — the extractor above still applies once
 you have the HTML.
 
+## Tidy & tame data (from the start)
+
+Scraped tables come out as strings — `"1,429,404,000"`, `"1 Jul 2026"`,
+`"Official projection[4]"`. `tidyTable()` turns them into analysis-ready data in
+one pass: it infers a type per column, coerces cells (numbers → `number`, dates
+→ ISO, percents → number), strips footnote markers, drops blanks to `null`, and
+can snake_case headers for SQL/DuckDB.
+
+```ts
+import { extractTables, largestTable, tidyTable } from "scrapeflow";
+
+const t = tidyTable(largestTable(doc)!, { snakeCase: true });
+// t.columns -> [{name:"population", type:"number"}, {name:"date", type:"date"}, ...]
+// t.rows[0] -> { location:"India", population:1429404000, date:"2026-07-01", notes:null }
+```
+
+This is a design principle, not a post-step: every extractor aims to emit tidy,
+typed data (one variable per column, one observation per row) so downstream code
+never re-parses strings. The number parser disambiguates `"1.250"` (1250) from
+`"4.8"` (4.8) and `"8,232,000,000"` (thousands), so Indonesian and US number
+formats both land correctly.
+
 ## Data normalization (dates)
 
 Extracted text is messy — news dates come as `16 Juni 2026`, `04 August 2026

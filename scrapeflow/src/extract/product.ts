@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { Document } from "../types.js";
 import { asName, collectJsonLdNodes, findByType, firstString } from "./jsonld.js";
+import { parseNumber as toNumber } from "../lib/coerce.js";
 
 /**
  * Canonical product shape for any e-commerce page. Same layered strategy as the
@@ -25,38 +26,6 @@ export interface Product {
 }
 
 const PRODUCT_TYPES = new Set(["product", "productgroup", "individualproduct"]);
-
-function toNumber(v: unknown): number | null {
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  if (typeof v !== "string") return null;
-
-  // Handle "Rp1.250.000", "1,250.00", "1.250,00", "4.8" etc.
-  const cleaned = v.replace(/[^\d.,]/g, "");
-  if (!cleaned) return null;
-  const dots = (cleaned.match(/\./g) ?? []).length;
-  const commas = (cleaned.match(/,/g) ?? []).length;
-
-  let norm: string;
-  if (dots && commas) {
-    // Both present: whichever appears LAST is the decimal separator.
-    norm =
-      cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")
-        ? cleaned.replace(/\./g, "").replace(",", ".")
-        : cleaned.replace(/,/g, "");
-  } else if (dots + commas === 1) {
-    // One separator: 3 digits after it -> thousands, otherwise decimal.
-    // (This is what distinguishes "1.250" = 1250 from "4.8" = 4.8.)
-    const sep = dots ? "." : ",";
-    const frac = cleaned.slice(cleaned.indexOf(sep) + 1);
-    norm = frac.length === 3 ? cleaned.replace(sep, "") : cleaned.replace(sep, ".");
-  } else {
-    // Multiple same separators = thousands grouping; none = plain integer.
-    norm = cleaned.replace(/[.,]/g, "");
-  }
-
-  const n = Number(norm);
-  return Number.isFinite(n) ? n : null;
-}
 
 /** Offers may be Offer | AggregateOffer | array; pull the first with a price. */
 function pickOffer(offers: unknown): Record<string, unknown> | null {
