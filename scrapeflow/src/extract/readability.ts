@@ -25,6 +25,10 @@ const JUNK_INSIDE =
 const NOISE_LINE =
   /^(baca juga|lihat juga|simak juga|simak video|saksikan|tonton|advertisement|scroll to continue|scroll to resume|iklan|halaman selanjutnya|halaman berikutnya|next page|share this|bagikan|komentar|topik terkait|artikel terkait|berita terkait|\[?video\]?)\b/i;
 
+// Subscription / membership CTAs that some publishers append to the body.
+const PROMO_LINE =
+  /(gabung|join|langganan|berlangganan).{0,40}(plus|membership|premium|subscri)|dukung.{0,25}jurnalis|tanpa iklan|utm_(source|campaign|medium)/i;
+
 export interface MainContent {
   html: string;
   textLength: number;
@@ -61,6 +65,14 @@ export function extractMainContent(rawHtml: string): MainContent | null {
     const sig = `${$(el).attr("class") ?? ""} ${$(el).attr("id") ?? ""}`;
     if (JUNK_INSIDE.test(sig)) $(el).remove();
   });
+  // Unwrap SEO auto-tag/topic links (keep the words, drop the link noise).
+  $('a[href*="/tag/"], a[href*="/topik/"], a[href*="/topic/"]', chosen).each((_, el) => {
+    $(el).replaceWith($(el).text());
+  });
+  // Remove marketing/subscription CTAs (identified by their tracking links).
+  $('a[href*="utm_"], a[href*="/membership"], a[href*="/subscribe"]', chosen).each((_, el) => {
+    $(el).closest("p").remove();
+  });
   // Drop "Baca juga"-style inline links (common as <a> or <strong> lead-ins).
   $("a, strong, b", chosen).each((_, el) => {
     if (NOISE_LINE.test($(el).text().trim())) $(el).remove();
@@ -89,8 +101,9 @@ export function cleanArticleMarkdown(md: string, title?: string | null): string 
       const headingText = t.replace(/^#{1,3}\s*/, "").trim();
       if (title && normalize(headingText) === normalize(title)) continue;
     }
-    // Drop noise lines anywhere.
-    if (NOISE_LINE.test(t.replace(/^[#>*\-\s]+/, ""))) continue;
+    // Drop noise + promo/subscription lines anywhere.
+    const bare = t.replace(/^[#>*\-\s_]+/, "");
+    if (NOISE_LINE.test(bare) || PROMO_LINE.test(t)) continue;
     // Skip leading chrome (link/image-only, breadcrumbs) until real prose.
     if (!started) {
       if (t === "") continue;
