@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import type { Document } from "../types.js";
 import { normalizeDate } from "../lib/dates.js";
 import { convertHtmlToMarkdown } from "../pipeline/htmlToMarkdown.js";
+import { extractMainContent, cleanArticleMarkdown } from "./readability.js";
 
 /**
  * One canonical shape every news article resolves to, regardless of publisher.
@@ -90,22 +91,6 @@ function sanitizeAuthor(v: string | null): string | null {
   return s;
 }
 
-/** Strip leading breadcrumb/nav/image chrome until real prose or a heading. */
-function stripLeadingChrome(md: string): string {
-  const lines = md.split("\n");
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i].trim();
-    if (line === "") { i++; continue; }
-    if (line.startsWith("#")) break; // a heading = start of content
-    // A line that is only links/images/short breadcrumb text -> chrome.
-    const stripped = line.replace(/!?\[[^\]]*\]\([^)]*\)/g, "").replace(/[|›>/·-]/g, "").trim();
-    if (stripped.length < 40) { i++; continue; }
-    break; // substantial prose -> content starts here
-  }
-  return lines.slice(i).join("\n").trim();
-}
-
 function firstString(v: unknown): string | null {
   if (typeof v === "string") return v.trim() || null;
   if (Array.isArray(v)) {
@@ -119,38 +104,6 @@ function firstString(v: unknown): string | null {
     if (typeof url === "string") return url;
   }
   return null;
-}
-
-// ---- Readability-lite ------------------------------------------------------
-
-const NOISE = "script,style,noscript,iframe,svg,template,nav,aside,footer,header,form,figure,figcaption";
-
-/**
- * Pick the main content container by text density: among candidate blocks,
- * choose the one with the most paragraph text. Site-agnostic — no per-site
- * selectors. Returns cleaned HTML for markdown conversion.
- */
-function pickMainContentHtml($: cheerio.CheerioAPI): string | null {
-  $(NOISE).remove();
-
-  const semantic = $("article").first();
-  if (semantic.length && $("p", semantic).text().trim().length > 200) {
-    return $.html(semantic);
-  }
-
-  let best: { el: cheerio.Cheerio<never>; score: number } | null = null;
-  $("div, section, main").each((_, el) => {
-    const $el = $(el) as unknown as cheerio.Cheerio<never>;
-    const ps = $("p", $el);
-    if (ps.length < 2) return;
-    const textLen = ps.text().replace(/\s+/g, " ").trim().length;
-    const linkLen = $("a", $el).text().length;
-    // Prefer lots of paragraph text, penalize link-heavy (nav/related) blocks.
-    const score = textLen - linkLen * 2;
-    if (score > 300 && (!best || score > best.score)) best = { el: $el, score };
-  });
-
-  return best ? $.html((best as { el: cheerio.Cheerio<never> }).el) : null;
 }
 
 // ---- Main extractor --------------------------------------------------------
@@ -255,19 +208,19 @@ export function extractArticle(doc: Document): Article {
     metaProp("og:image"),
   );
 
-  // Body: prefer JSON-LD articleBody (clean text), else Readability-lite.
+  // Body: prefer JSON-LD articleBody (clean text), else Readability + cleaner.
   let body: string | null = null;
   const ldBody = article ? firstString(article.articleBody) : null;
   if (ldBody && ldBody.length > 200) {
     body = ldBody;
     sources.body = "json-ld";
   } else {
-    const mainHtml = pickMainContentHtml(cheerio.load(html));
-    if (mainHtml) {
-      body = stripLeadingChrome(convertHtmlToMarkdown(mainHtml));
+    const main = extractMainContent(html);
+    if (main) {
+      body = cleanArticleMarkdown(convertHtmlToMarkdown(main.html), title);
       sources.body = body ? "readability" : "none";
     } else {
-      body = doc.markdown ?? null;
+      body = doc.markdown ? cleanArticleMarkdown(doc.markdown, title) : null;
       sources.body = body ? "readability" : "none";
     }
   }
