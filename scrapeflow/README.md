@@ -269,6 +269,32 @@ layer *detects* the block, but getting *through* needs stealth + residential
 proxies (a `FetchEngine` you plug in) — the extractor above still applies once
 you have the HTML.
 
+## Deep extract — many pages into one dataset
+
+Data is often spread across pages: one page per year, per region, or a paginated
+list. `deepExtract` scrapes them concurrently, tidies each table, and merges into
+a single dataset — two modes:
+
+```ts
+import { deepExtract } from "scrapeflow";
+
+// UNION — stack rows from paginated pages (same schema), tag the source.
+await deepExtract(pages, { merge: "union", sourceColumn: "page" });
+
+// JOIN — widen by a key column: e.g. inflation per province, one page per year.
+await deepExtract(
+  [ { url: ".../2023", label: "2023" }, { url: ".../2024", label: "2024" } ],
+  { merge: "join", key: "provinsi" },   // -> { provinsi, inflasi_2023, inflasi_2024 }
+);
+```
+
+`key: "@first"` joins on each table's first column (handy when key headers differ
+across pages). Missing cells become `null` (rectangular output), a page with no
+table is reported but never fails the batch, and `matchedKeys` tells you how many
+keys appeared in more than one source. Verified live: joined Wikipedia's
+population and GDP tables by country into one dataset — **194 countries matched**,
+`{ location, population_pop, imf_2026_gdp, ... }`, all typed.
+
 ## Tidy & tame data (from the start)
 
 Scraped tables come out as strings — `"1,429,404,000"`, `"1 Jul 2026"`,

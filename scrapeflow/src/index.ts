@@ -54,6 +54,14 @@ export type { ExtractedTable } from "./extract/tables.js";
 // Tidy layer — clean names, inferred types, coerced cells (analysis-ready)
 export { tidyTable } from "./extract/tidy.js";
 export type { TidyTable, TidyColumn, TidyOptions } from "./extract/tidy.js";
+
+// Deep extract — merge tables across many pages into one dataset
+export { deepExtract } from "./extract/deep.js";
+export type {
+  DeepSource,
+  DeepExtractOptions,
+  DeepExtractResult,
+} from "./extract/deep.js";
 export {
   parseNumber,
   parsePercent,
