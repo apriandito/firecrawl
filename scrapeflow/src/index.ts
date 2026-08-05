@@ -47,6 +47,10 @@ export type { Article } from "./extract/article.js";
 export { extractProduct } from "./extract/product.js";
 export type { Product } from "./extract/product.js";
 
+// Table extractor (HTML tables -> structured rows; for data/stats sites)
+export { extractTables, largestTable } from "./extract/tables.js";
+export type { ExtractedTable } from "./extract/tables.js";
+
 // Resilience layer
 export { withRetry, detectBlock, evaluateResult } from "./engines/resilience.js";
 

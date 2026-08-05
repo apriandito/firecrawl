@@ -21,18 +21,31 @@ export async function withRetry<T>(
   throw lastErr;
 }
 
+// Precise interstitial signatures. These must indicate the page IS a challenge,
+// not merely mention a word — a real article containing "captcha" in some edit
+// link must NOT be flagged (that was a real false positive on Wikipedia).
 const BLOCK_SIGNATURES: { pattern: RegExp; reason: string }[] = [
   { pattern: /just a moment\.\.\./i, reason: "cloudflare-challenge" },
   { pattern: /cf-browser-verification|cf_chl_opt|__cf_chl/i, reason: "cloudflare-challenge" },
   { pattern: /attention required!.*cloudflare/is, reason: "cloudflare-block" },
-  { pattern: /captcha|recaptcha|hcaptcha/i, reason: "captcha" },
-  { pattern: /access denied|you have been blocked|request blocked/i, reason: "access-denied" },
-  { pattern: /enable javascript and cookies to continue/i, reason: "js-wall" },
+  { pattern: /please (complete|verify|solve)[^.]{0,30}captcha|captcha[^.]{0,20}(to continue|to verify)|are you a (human|robot)/i, reason: "captcha" },
+  { pattern: /access denied|you have been blocked|request (was )?blocked|blocked by/i, reason: "access-denied" },
+  { pattern: /enable javascript and cookies to continue|please enable cookies/i, reason: "js-wall" },
 ];
 
-/** Heuristic: does this look like an anti-bot interstitial rather than content? */
+/** Approximate visible-text length (tags stripped). */
+function visibleTextLength(html: string): number {
+  return html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length;
+}
+
+/**
+ * Heuristic: does this look like an anti-bot interstitial rather than content?
+ * A content-rich page (lots of visible text) is never a block, even if a block
+ * keyword appears somewhere in its markup — interstitials are short.
+ */
 export function detectBlock(html: string): string | null {
-  const head = html.slice(0, 4000);
+  if (visibleTextLength(html) > 3000) return null; // substantial content = real page
+  const head = html.slice(0, 6000);
   for (const { pattern, reason } of BLOCK_SIGNATURES) {
     if (pattern.test(head)) return reason;
   }
