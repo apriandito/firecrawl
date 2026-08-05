@@ -1,4 +1,28 @@
 /**
+ * Run `items` through `worker` with at most `concurrency` in flight at once,
+ * preserving result order. The workhorse behind fan-out job execution.
+ */
+export async function mapLimit<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const runners = Array.from(
+    { length: Math.max(1, Math.min(concurrency, items.length)) },
+    async () => {
+      while (next < items.length) {
+        const i = next++;
+        results[i] = await worker(items[i], i);
+      }
+    },
+  );
+  await Promise.all(runners);
+  return results;
+}
+
+/**
  * A concurrency-limited work queue that supports enqueuing MORE work while
  * running — exactly what a crawler needs (each scraped page discovers links).
  * In-process by design; swap for a distributed queue (BullMQ) behind the same

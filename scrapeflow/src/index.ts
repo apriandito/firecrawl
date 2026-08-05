@@ -74,6 +74,21 @@ export type { OpenAIProviderOptions } from "./llm/provider.js";
 
 export { sinks, getSink } from "./export/registry.js";
 
+// Multi-job orchestration (run many scrapers/agents concurrently)
+export { JobManager } from "./jobs/manager.js";
+export type { JobManagerOptions } from "./jobs/manager.js";
+export { InMemoryJobStore } from "./jobs/store.js";
+export { createDefaultHandlers } from "./jobs/handlers.js";
+export type {
+  JobInput,
+  JobRecord,
+  JobStatus,
+  JobHandler,
+  JobEvent,
+  JobStore,
+} from "./jobs/types.js";
+export { mapLimit } from "./lib/pool.js";
+
 // Phase 4 — agentic
 export { runAgent } from "./agent/runner.js";
 export type { RunAgentOptions, RunAgentResult } from "./agent/runner.js";

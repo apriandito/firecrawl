@@ -161,6 +161,34 @@ const { documents } = await crawl("https://example.com/blog", {
 normalized URL. `mapSite` reads `robots.txt` + `sitemap.xml` (following one index
 level) and falls back to homepage links.
 
+## Running many jobs at once (concurrent scrapers + agents)
+
+Submit a batch of jobs — plain scrapes, article/product extraction, or full
+natural-language agent tasks — and a bounded worker pool runs them concurrently,
+tracking status and results. Inspired by the queue-of-agents model (qm), kept
+in-process with a `JobStore` port you can swap for Postgres/Redis later.
+
+```ts
+import { JobManager, createDefaultHandlers } from "scrapeflow";
+
+const mgr = new JobManager({ handlers: createDefaultHandlers(), concurrency: 4 });
+const results = await mgr.submitAndRun([
+  { kind: "article", input: { url: "https://finance.detik.com/..." } },
+  { kind: "product", input: { url: "https://shop.example/p/123" } },
+  { kind: "agent",   input: { task: "berita ekonomi syariah di CNBC jadi Excel" } },
+]);
+// each result: { id, kind, status, result | error, timings, progress }
+```
+
+```bash
+npm run jobs -- jobs.json --concurrency 4 --out results.json
+```
+
+The pool is bounded (never more than `concurrency` in flight), a failing job is
+isolated (siblings keep running), and status is queryable live (`mgr.status(id)`)
+so a server/dashboard can show progress. Verified live: 4 mixed jobs across 4
+sites finished in ~one job's wall-time, not the sum — real parallelism.
+
 ## Phase 4 — the agent (your mission)
 
 ```bash
