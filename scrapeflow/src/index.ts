@@ -39,6 +39,10 @@ export {
 export { normalizeDate } from "./lib/dates.js";
 export type { NormalizedDate } from "./lib/dates.js";
 
+// Universal article extractor (single code path across news sites)
+export { extractArticle } from "./extract/article.js";
+export type { Article } from "./extract/article.js";
+
 // Resilience layer
 export { withRetry, detectBlock, evaluateResult } from "./engines/resilience.js";
 

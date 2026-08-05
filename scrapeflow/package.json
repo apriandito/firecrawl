@@ -17,7 +17,7 @@
     "cli": "tsx src/cli.ts",
     "agent": "tsx src/agent-cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx scripts/smoke.ts && tsx scripts/smoke-crawl.ts && tsx scripts/smoke-dates.ts && tsx scripts/smoke-agent.ts"
+    "test": "tsx scripts/smoke.ts && tsx scripts/smoke-crawl.ts && tsx scripts/smoke-dates.ts && tsx scripts/smoke-article.ts && tsx scripts/smoke-agent.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",

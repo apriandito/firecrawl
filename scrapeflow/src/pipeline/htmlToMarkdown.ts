@@ -36,6 +36,12 @@ function postProcess(md: string): string {
     .trim();
 }
 
+/** Standalone HTML→Markdown using the same canonical converter + post-processing. */
+export function convertHtmlToMarkdown(html: string): string {
+  if (!html) return "";
+  return postProcess(converter.turndown(html));
+}
+
 export const htmlToMarkdown: Transformer = {
   name: "htmlToMarkdown",
   transform(doc: Document, ctx: TransformContext): Document {

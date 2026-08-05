@@ -187,6 +187,35 @@ only compact summaries, so page content never floods the model context. Adding
 Phase 4 required **no changes** to earlier phases — exactly what the `AgentTool`
 port was placed for on day one.
 
+## Universal article extractor (one code, many sites)
+
+The hard problem: CNN, Detik, Kompas, CNBC all lay out their HTML differently —
+yet you want **the same structured record** from each, without writing per-site
+code. `extractArticle(doc)` does this with a layered, single code path:
+
+```
+1. schema.org JSON-LD (NewsArticle)  → headline, author, datePublished, body …
+2. Open Graph / <meta> fallbacks     → og:title, article:author, …
+3. Readability-lite                  → main-content body when JSON-LD lacks it
+```
+
+It generalizes not by knowing each site, but by leaning on the **standards they
+all emit for SEO** (JSON-LD is near-universal on news sites). Every field records
+its `source` so you can see which layer produced it.
+
+```ts
+import { scrapeUrl, extractArticle } from "scrapeflow";
+const doc = await scrapeUrl(url, { formats: ["rawHtml"] });
+const a = extractArticle(doc);
+// { title, author, publishedDate, publishedTime, description,
+//   section, siteName, image, body, url, sources }
+```
+
+Verified **live** against CNN, Detik, Kompas, and CNBC Indonesia — one function,
+identical output shape, all core fields resolved from JSON-LD, **no per-site code
+and no LLM**. Author values are sanitized (social-URL "authors" rejected) and the
+body is stripped of leading breadcrumb/nav chrome.
+
 ## Data normalization (dates)
 
 Extracted text is messy — news dates come as `16 Juni 2026`, `04 August 2026
