@@ -3,6 +3,7 @@ import type { Document } from "../types.js";
 import { normalizeDate } from "../lib/dates.js";
 import { convertHtmlToMarkdown } from "../pipeline/htmlToMarkdown.js";
 import { extractMainContent, cleanArticleMarkdown } from "./readability.js";
+import { asName, collectJsonLdNodes, findByType, firstString } from "./jsonld.js";
 
 /**
  * One canonical shape every news article resolves to, regardless of publisher.
@@ -35,52 +36,6 @@ const ARTICLE_TYPES = new Set([
   "liveblogposting",
 ]);
 
-/** Flatten every JSON-LD node (handles @graph and arrays) into a flat list. */
-function collectJsonLdNodes($: cheerio.CheerioAPI): Record<string, unknown>[] {
-  const nodes: Record<string, unknown>[] = [];
-  $('script[type="application/ld+json"]').each((_, el) => {
-    const raw = $(el).contents().text();
-    if (!raw.trim()) return;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return; // malformed JSON-LD is common; skip it
-    }
-    const stack = [parsed];
-    while (stack.length) {
-      const node = stack.pop();
-      if (Array.isArray(node)) stack.push(...node);
-      else if (node && typeof node === "object") {
-        const obj = node as Record<string, unknown>;
-        nodes.push(obj);
-        if (Array.isArray(obj["@graph"])) stack.push(...(obj["@graph"] as unknown[]));
-      }
-    }
-  });
-  return nodes;
-}
-
-function typeMatches(node: Record<string, unknown>): boolean {
-  const t = node["@type"];
-  const types = Array.isArray(t) ? t : [t];
-  return types.some((x) => typeof x === "string" && ARTICLE_TYPES.has(x.toLowerCase()));
-}
-
-function asName(v: unknown): string | null {
-  if (!v) return null;
-  if (typeof v === "string") return v.trim() || null;
-  if (Array.isArray(v)) {
-    const names = v.map(asName).filter(Boolean);
-    return names.length ? names.join(", ") : null;
-  }
-  if (typeof v === "object") {
-    const name = (v as Record<string, unknown>).name;
-    return typeof name === "string" ? name.trim() || null : null;
-  }
-  return null;
-}
-
 /** Reject URL-shaped, empty, or absurdly long "authors" (social links etc.). */
 function sanitizeAuthor(v: string | null): string | null {
   if (!v) return null;
@@ -89,21 +44,6 @@ function sanitizeAuthor(v: string | null): string | null {
   if (/^https?:\/\//i.test(s)) return null;
   if (/facebook|twitter|instagram|\.com\b/i.test(s) && /\//.test(s)) return null;
   return s;
-}
-
-function firstString(v: unknown): string | null {
-  if (typeof v === "string") return v.trim() || null;
-  if (Array.isArray(v)) {
-    for (const x of v) {
-      const s = firstString(x);
-      if (s) return s;
-    }
-  }
-  if (v && typeof v === "object") {
-    const url = (v as Record<string, unknown>).url;
-    if (typeof url === "string") return url;
-  }
-  return null;
 }
 
 // ---- Main extractor --------------------------------------------------------
@@ -123,12 +63,8 @@ export function extractArticle(doc: Document): Article {
   const sources: Record<string, FieldSource> = {};
 
   const ld = collectJsonLdNodes($);
-  const article = ld.find(typeMatches);
-  const publisher = ld.find((n) => {
-    const t = n["@type"];
-    const types = Array.isArray(t) ? t : [t];
-    return types.some((x) => typeof x === "string" && x.toLowerCase() === "organization");
-  });
+  const article = findByType(ld, ARTICLE_TYPES);
+  const publisher = findByType(ld, new Set(["organization"]));
 
   const metaProp = (p: string) => $(`meta[property="${p}"]`).attr("content")?.trim() || undefined;
   const metaName = (n: string) => $(`meta[name="${n}"]`).attr("content")?.trim() || undefined;

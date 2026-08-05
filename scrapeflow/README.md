@@ -216,6 +216,31 @@ identical output shape, all core fields resolved from JSON-LD, **no per-site cod
 and no LLM**. Author values are sanitized (social-URL "authors" rejected) and the
 body is stripped of leading breadcrumb/nav chrome.
 
+## Universal product extractor (e-commerce)
+
+The same pattern generalizes past news. `extractProduct(doc)` resolves any
+store's product page to one canonical shape via schema.org `Product` JSON-LD
+(what shops emit for Google Shopping) with Open Graph product-meta fallback:
+
+```ts
+import { scrapeUrl, extractProduct } from "scrapeflow";
+const doc = await scrapeUrl(url, { formats: ["rawHtml"] });
+const p = extractProduct(doc);
+// { name, brand, price, currency, priceText, availability,
+//   rating, ratingCount, sku, image, description, url, sources }
+```
+
+Prices are parsed robustly (`"Rp1.250.000"`, `"1,250.00"`, `"4.8"` are all
+disambiguated), missing fields stay `null` (never invented). Verified live on a
+WooCommerce store: name/price/sku/availability/image all from JSON-LD, one code
+path, no per-site rules.
+
+**On anti-bot sites (e.g. Tokopedia):** hardened marketplaces return `503`/
+challenges to plain HTTP and detect headless browsers. ScrapeFlow's resilience
+layer *detects* the block, but getting *through* needs stealth + residential
+proxies (a `FetchEngine` you plug in) — the extractor above still applies once
+you have the HTML.
+
 ## Data normalization (dates)
 
 Extracted text is messy — news dates come as `16 Juni 2026`, `04 August 2026

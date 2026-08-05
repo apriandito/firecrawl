@@ -43,6 +43,10 @@ export type { NormalizedDate } from "./lib/dates.js";
 export { extractArticle } from "./extract/article.js";
 export type { Article } from "./extract/article.js";
 
+// Universal product extractor (single code path across e-commerce sites)
+export { extractProduct } from "./extract/product.js";
+export type { Product } from "./extract/product.js";
+
 // Resilience layer
 export { withRetry, detectBlock, evaluateResult } from "./engines/resilience.js";
 
