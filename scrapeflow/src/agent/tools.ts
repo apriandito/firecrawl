@@ -7,6 +7,7 @@ import { mapSite as defaultMapSite, type MapOptions } from "../core/map.js";
 import { extractStructured } from "../core/extract.js";
 import { getSink } from "../export/registry.js";
 import { buildRecordSchema, hasSignal, type FieldSpec } from "../lib/fieldSchema.js";
+import { mapLimit } from "../lib/pool.js";
 import { AgentSession } from "./session.js";
 
 export interface ToolDeps {
@@ -15,23 +16,6 @@ export interface ToolDeps {
   mapSite?: (seed: string, opts: MapOptions) => Promise<{ url: string }[]>;
   /** How many pages to scrape/extract concurrently. */
   concurrency?: number;
-}
-
-async function mapLimit<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = [];
-  let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) {
-      const idx = i++;
-      out[idx] = await fn(items[idx]);
-    }
-  });
-  await Promise.all(workers);
-  return out;
 }
 
 /**

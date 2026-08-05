@@ -5,7 +5,9 @@ import type { Document } from "../types.js";
 /**
  * Extract HTML <table> data into structured rows. Essential for statistics/data
  * sites (BPS, Wikipedia, gov portals) where the payload lives in tables, not
- * prose. Deterministic; site-agnostic. rowspan/colspan are expanded best-effort.
+ * prose. Deterministic; site-agnostic. `colspan` cells are repeated across the
+ * span; `rowspan` is NOT yet propagated down rows (a known limitation for tables
+ * that group categories with rowspan — see review notes).
  */
 export interface ExtractedTable {
   caption: string | null;
