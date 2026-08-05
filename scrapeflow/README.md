@@ -269,6 +269,36 @@ layer *detects* the block, but getting *through* needs stealth + residential
 proxies (a `FetchEngine` you plug in) — the extractor above still applies once
 you have the HTML.
 
+## Land data in DuckDB (query with SQL)
+
+For local analysis, land a tidy dataset in an embedded DuckDB database and query
+it with SQL — join, aggregate, export to CSV/Parquet, no server. DuckDB is an
+optional dependency, loaded lazily.
+
+```ts
+import { deepExtract, DuckDBDatasetStore } from "scrapeflow";
+
+const { table } = await deepExtract(sources, { merge: "join", key: "@first" });
+const db = await DuckDBDatasetStore.open("data.duckdb"); // or ":memory:"
+await db.createFromTidy("countries", table, { replace: true });
+
+const top = await db.query(`
+  SELECT location, round(imf_2026_gdp*1e6 / population_pop, 0) AS gdp_per_capita
+  FROM countries WHERE population_pop > 5000000
+  ORDER BY gdp_per_capita DESC LIMIT 10
+`);
+await db.exportCsv("countries", "countries.csv");
+```
+
+Column types carry over (numbers → DOUBLE, dates → ISO VARCHAR), NULLs are
+preserved, and BigInt/DATE results are normalized to plain JS values. Verified
+live end-to-end: two Wikipedia pages → merged dataset → DuckDB → a GDP-per-capita
+query returning correct real-world rankings (Ireland, Switzerland, Singapore…).
+
+```bash
+npm run test:duck   # requires the optional @duckdb/node-api dep
+```
+
 ## Deep extract — many pages into one dataset
 
 Data is often spread across pages: one page per year, per region, or a paginated

@@ -62,6 +62,9 @@ export type {
   DeepExtractOptions,
   DeepExtractResult,
 } from "./extract/deep.js";
+
+// DuckDB landing store (optional dep) — land datasets, query with SQL
+export { DuckDBDatasetStore } from "./store/duckdb.js";
 export {
   parseNumber,
   parsePercent,
